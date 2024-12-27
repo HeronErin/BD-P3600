@@ -26,10 +26,10 @@ To start out with, you need to set up the raspberry pi over ssh on wifi, as a mi
 
 After the raspberry pi has UART enabled, you need to solder to the correct pins. Use this diagram to know where to solder to!
 
-![/imgs/diagram.png]()
-![/imgs/pcp-location.png]()
+![](imgs/diagram.png)
+![](imgs/pcp-location.png)
 If you ignore my horrible solder job, here it what it should look like!
-![/imgs/my-solder.jpg]()
+![](imgs/my-solder.jpg])
 if you did everything right, and it passes the smoke test, you've got yourself all you need on the hardware side!
 
 To test out an make sure it works, run on your pi the command to view the UART then turn on the player! If your lucky you should see a boot-log spray onto the screen. You might need to first install minicom using apt.  
