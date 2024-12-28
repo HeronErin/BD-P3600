@@ -1,4 +1,4 @@
-## The BD-P3600 hacker's guide: A path to persistence and homebrew
+# The BD-P3600 hacker's guide: A path to persistence and homebrew
 
 > [!CAUTION]
 > This guide assumes your are:
@@ -11,13 +11,13 @@
 > The purpose of this guide is **not** for that of piracy, but rather homebrew and general shenanigans. 
 
 Another guide can be found [here](https://www.avforums.com/threads/hacking-samsung-bd-p1620a-bd-p3600.1245419/) on avforums, although I found it to be lacking in many respects. Although it is still a useful resource. 
-### Part 0: Required supplies
+## Part 0: Required supplies
 1. A soldering iron
 2. Something capable of UART (A raspberry pi is what I am using)
 3. An Ethernet cable with a router to plug it into
 4. 4 male to female jumper wires compatible with being attached to the raspberry pi
 
-### Part 1: Obtaining UART
+## Part 1: Obtaining UART
 For those unaware, UART ([Universal asynchronous receiver-transmitter](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter)) is a basic serial protocol that allows you to obtain a simple TTY, and lucky the BD-P3600 has easily accessible UART pins! 
 
 To start out with, you need to set up the raspberry pi over ssh on wifi, as a million tutorials for this exist I will leave it as an exercise to the reader/google.
@@ -40,32 +40,39 @@ minicom -b 115200 -o -D /dev/ttyS0
 (Depending on the raspberry pi version, you might need to try `/dev/ttyAMA0`, `/dev/serial0`, `/dev/serial1`, or `/dev/AMA0`. See https://spellfoundry.com/2016/05/29/configuring-gpio-serial-port-raspbian-jessie-including-pi-3-4/)
 
 If still nothing happens, check your connections, and use a multi-meter to make sure you didn't bridge any of the pins you shouldn't have
-### Part 2: Logging in and making a copy of the firmware
+## Part 2: Logging in and making a copy of the firmware
 
 There are two methods to login to the DVD player, and if your anything like me you will probably need both. 
 
-1. Logging in the "proper" way:
-	* After the DVD player has booted hit CTRL-C
-	* Use the username `root` and the password of `tkfkddlf`
-		* Note: This password appears to be a reference to a Korean pop song, but evidence is inconclusive. Samsung also uses this for many products
-	* At this point you are in a root shell
-2. Via the boot loader in single user mode
-	* **SPAM CTRL-C** while the DVD player is booting, if your lucky you will see `CFE> `, otherwise you waited too long and need to try again. 
-		* You can reboot it either from pressing the physical power button, or running the `reboot` command in the root shell. The latter is the easiest option as you can spam CTRL-C as soon the the command is executed. 
-		* You will find the boot loader to be your best friend during this process
-	* Run `printenv` to find your players default boot command, mine looks like this:
-	```bash
-splash -480p;boot -z -elf flash0.kernel: 'root=/dev/romblock2 memcfg=384 console=1,115200n8 BDVD_BOOT_AUTOSTART=y ro'
-	```
-	* To boot into single user mode, to bypass the login prompt, simply add the `single` argument, and since we are here replace `ro` with `rw` to disable write protection. So now you should have something like:
-	```bash
-boot -z -elf flash0.kernel: 'root=/dev/romblock2 memcfg=384 console=1,115200n8 BDVD_BOOT_AUTOSTART=y single rw'
-	```
-	* Run that command in CFE to get into the operating system without a password, or executing most startup programs
-	* To do mostly anything you need to mount the proc
-```bash
-mount -t proc none /proc
-```
+### Method 1: Logging in the "proper" way
+1. Boot the Blu-ray player and press **CTRL+C**.  
+2. Log in with:  
+   - **Username:** `root`  
+   - **Password:** `tkfkddlf` (This appears to reference a Korean pop song; confirmation is inconclusive.)  
+
+### Method 2: Via the boot loader in single user mode
+1. Spam **CTRL+C** during boot to access the bootloader (`CFE>` prompt). If you miss it, reboot and try again.  
+2. View the default boot command using `printenv`. For example:  
+
+   ```bash
+   splash -480p;boot -z -elf flash0.kernel: 'root=/dev/romblock2 memcfg=384 console=1,115200n8 BDVD_BOOT_AUTOSTART=y ro'
+   ```
+
+3. Modify the command to enable single-user mode and write access:  
+
+   ```bash
+   boot -z -elf flash0.kernel: 'root=/dev/romblock2 memcfg=384 console=1,115200n8 BDVD_BOOT_AUTOSTART=y single rw'
+   ```
+
+4. Run the modified command to boot into the OS.  
+5. Mount the proc filesystem:  
+
+   ```bash
+   mount -t proc none /proc
+   ```
+
+---
+
 
 After playing around for a while, you might notice that the entire OS (apart from the pstor) is  ephemeral, meaning any saved changes are reverted upon reboot, even if the write protection is disabled.
 
