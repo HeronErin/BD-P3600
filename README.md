@@ -55,6 +55,7 @@ There are two methods to login to the BD-P3600, and if your anything like me you
 
 ### Method 2: Via the boot loader in single user mode
 1. Spam **CTRL+C** during boot to access the bootloader (`CFE>` prompt). If you miss it, reboot and try again.  
+	* Using the `reboot` command while logged in to the player makes this easier as you can start spamming immediately 
 2. View the default boot command using `printenv`. For example:  
 
    ```bash
