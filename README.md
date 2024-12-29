@@ -167,7 +167,6 @@ And add the following bellow the default (unused) user script on line 418.
 ```bash
 # A user script in the persistent storage.  
 if [ -f /mnt/pstor/startup.sh ]; then  
-   [ "$BQ" ] || echo "rcS: Source /mnt/pstor/startup.sh"  
    . /mnt/pstor/startup.sh  
   
    if [ $? -eq 105 ]; then # 0x69 in decimal is 105  
