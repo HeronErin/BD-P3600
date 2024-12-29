@@ -1,0 +1,28 @@
+***************
+*** 415,421 ****
+      [ "$BQ" ] || echo "rcS: Source /root/rc.user."
+      . /root/rc.user
+  fi
+! #
+  if [ "" != "${BAPP}" ] ; then
+      # BAPP_OUT == Broadcom APplication Output 
+      [ "${BAPP_OUT}" ] || BAPP_OUT="/dev/null"
+--- 415,432 ----
+      [ "$BQ" ] || echo "rcS: Source /root/rc.user."
+      . /root/rc.user
+  fi
+! 
+! # A user script in the persistent storage.
+! if [ -f /mnt/pstor/startup.sh ]; then
+!     [ "$BQ" ] || echo "rcS: Source /mnt/pstor/startup.sh"
+!     . /mnt/pstor/startup.sh
+! 
+!     if [ $? -eq 105 ]; then # 0x69 in decimal is 105
+!         echo "rcS: Error code 0x69 detected. Skipping the rest of the script."
+!         exit 0 # Do not return an error code.
+!     fi
+! fi
+! 
+  if [ "" != "${BAPP}" ] ; then
+      # BAPP_OUT == Broadcom APplication Output 
+      [ "${BAPP_OUT}" ] || BAPP_OUT="/dev/null"

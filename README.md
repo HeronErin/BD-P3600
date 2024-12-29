@@ -10,10 +10,13 @@
 > [!WARNING]
 > The purpose of this guide is **not** for that of piracy, but rather homebrew and general shenanigans. 
 
-Another guide can be found [here](https://www.avforums.com/threads/hacking-samsung-bd-p1620a-bd-p3600.1245419/) on avforums, although I found it to be lacking in many respects. Although it is still a useful resource. 
+Another guide can be found [here](https://www.avforums.com/threads/hacking-samsung-bd-p1620a-bd-p3600.1245419/) on AVForums, although I found it to be lacking in many respects. Although it is still a useful resource. 
+A guide for a similar model can be found [here](https://forum.samygo.tv/viewtopic.php?p=10052#p10052).
+
+
 ## Part 0: Required supplies
 1. A soldering iron
-2. Something capable of UART (A raspberry pi is what I am using)
+2. Something capable of UART (A Raspberry PI is what I am using)
 3. An Ethernet cable with a router to plug it into
 4. 4 male to female jumper wires compatible with being attached to the raspberry pi
 
@@ -32,7 +35,7 @@ If you ignore my horrible solder job, here it what it should look like!
 ![](imgs/my-solder.jpg)
 if you did everything right, and it passes the smoke test, you've got yourself all you need on the hardware side!
 
-To test out an make sure it works, run on your pi the command to view the UART then turn on the player! If your lucky you should see a boot-log spray onto the screen. You might need to first install minicom using apt.  
+To test out and make sure it works, run on your pi the command to view the UART then turn on the player! If your lucky you should see a boot-log spray onto the screen. You might need to first install minicom using apt.  
 
 ```bash
 minicom -b 115200 -o -D /dev/ttyS0
@@ -42,7 +45,7 @@ minicom -b 115200 -o -D /dev/ttyS0
 If still nothing happens, check your connections, and use a multi-meter to make sure you didn't bridge any of the pins you shouldn't have
 ## Part 2: Logging in and making a copy of the firmware
 
-There are two methods to login to the DVD player, and if your anything like me you will probably need both. 
+There are two methods to login to the BD-P3600, and if your anything like me you will probably need both. 
 
 ### Method 1: Logging in the "proper" way
 1. Boot the Blu-ray player and press **CTRL+C**.  
@@ -114,4 +117,161 @@ mtd10: 04000000 00004000 "all"
 ```
 **DO NOT EVER WRITE THE `cfe` or `all`!**
 
-To extract the firmware you can use the `dd` command. 
+To extract the firmware you can use the `dd` command, and store these files in a safe place. These are the commands I used:
+```bash
+dd if=/dev/mtdblock0 of=/var/cfe.bin
+dd if=/dev/mtdblock1 of=/var/vmlinux.bin
+dd if=/dev/mtdblock2 of=/var/rootfs.bin
+dd if=/dev/mtdblock3 of=/var/pstor.bin
+dd if=/dev/mtdblock4 of=/var/splash.bin
+dd if=/dev/mtdblock5 of=/var/drmregion.bin
+dd if=/dev/mtdblock6 of=/var/rawnvr.bin
+dd if=/dev/mtdblock7 of=/var/macadr.bin
+dd if=/dev/mtdblock8 of=/var/nvram.bin
+dd if=/dev/mtdblock9 of=/var/swap.bin
+dd if=/dev/mtdblock10 of=/var/all.bin
+
+sync # Make sure all data is copied to the flash drive
+umount /var
+```
+**Note**: The `nanddump` command adds extra error correction that make the resulting files invalid. 
+
+
+## Part 3: Modifying the rootfs to gain persistence
+
+The `rootfs` is internally as a `Squashfs filesystem, little endian, version 3.0`, which is a quite old, and outdated version. So old in fact, the old version of squashfs-tools needed to create them is incompatible with modern versions of gcc, as such it needs to be installed inside of docker. 
+
+I have included my `Dockerfile` that can be used to extract, modify, and pack a new `rootfs`. Download this (or clone this repo) and navigate to the directory in the terminal. Then build the docker image with the following command:
+```bash
+docker build -t squashfs-tools .
+```
+Navigate to where you have a copy of the rootfs, then use this command to run squashfs-tools and mount the directory:
+```bash
+docker run -it -v $(pwd):/mnt squashfs-tools
+```
+From within the container, extract the fs:
+```bash
+cp /mnt/ROOTFS.BIN .
+unsquashfs ROOTFS.BIN
+```
+At this point you can modify the rootfs anyway you want, the only thing I did was add a startup hook. You can use my `rcS.patch` file to do the changes for you, just put it the same directory as your rootfs (so the docker container can see it) and apply the patch:
+```bash
+patch /workspace/squashfs-root/etc/init.d/rcS /mnt/rcS.patch
+```
+
+Or just edit the `rcS` file yourself:
+```bash
+vi /workspace/squashfs-root/etc/init.d/rcS
+```
+And add the following bellow the default (unused) user script on line 418.
+```bash
+# A user script in the persistent storage.  
+if [ -f /mnt/pstor/startup.sh ]; then  
+   [ "$BQ" ] || echo "rcS: Source /mnt/pstor/startup.sh"  
+   . /mnt/pstor/startup.sh  
+  
+   if [ $? -eq 105 ]; then # 0x69 in decimal is 105  
+       echo "rcS: Error code 0x69 detected. Skipping the rest of the script."  
+       exit 0 # Do not return an error code.  
+   fi  
+fi
+```
+
+After all your changes are done, you can repack the rootfs:
+```bash
+# In the docker container:
+mksquashfs squashfs-root/ /mnt/newrootfs.bin
+# Exit the docker container
+# And on your machine give yourself permision over it:
+sudo chown $(whoami) newrootfs.bin
+```
+
+## Part 4:  Flashing the new rootfs
+
+This step is a bit dodgy, and took me about a week to figure out. First of all, you cannot flash a new rootfs while it is in use, so you need to do this from within the bootloader. Second, the bootloader (from my experience) cannot mount a USB flash drive, so the only option is to use a [TFTP](https://en.wikipedia.org/wiki/Trivial_File_Transfer_Protocol) server over Ethernet. Lastly, if the file you are flashing is greater than about ten megabytes, you get an IO error, so breaking up the file first is a must. 
+
+**Note**: The method used on [AVForums](https://www.avforums.com/threads/hacking-samsung-bd-p1620a-bd-p3600.1245419/) of booting over NFS seems not to work, and unnecessary when flashing from the bootloader is supported.  
+
+To set up TFTP, on a Debian(including the Raspberry PI) based distro use the following commands.
+```bash
+sudo apt-get install tftpd-hpa
+nano /etc/default/tftpd-hpa
+```
+Paste the following into `/etc/default/tftpd-hpa`
+```plaintext
+TFTP_USERNAME="tftp"
+TFTP_DIRECTORY="/srv/tftp"
+TFTP_ADDRESS="0.0.0.0:69"
+TFTP_OPTIONS="--secure"
+```
+Setup permissions:
+```bash
+sudo mkdir -p /srv/tftp
+sudo chmod -R 777 /srv/tftp
+
+# Get your new rootfs into the tftp dir
+cp newrootfs.bin /srv/tftp
+
+# Restart tftp
+sudo systemctl restart tftpd-hpa
+
+# Get your local ip
+ifconfig
+```
+Now split up the modified rootfs into 5 megabyte chunks:
+```bash
+cd /srv/tftp
+split -b 5242880 modfs.bin chunk_
+```
+
+
+At this point, plug the BD-P3600 into the router with the Ethernet cable, then get into the bootloader. To player the rootfs, use these commands:
+```bash
+# Enable networking
+CFE> ifconfig eth0 -auto
+# Understand the flash layout
+CFE> show devices
+
+# Clear the old rootfs
+CFE> flasherase flash0.rootfs
+
+# Flash the rootfs
+CFE> flash -noerase -noheader -offset=0 192.168.1.77:chunk_aa flash0.rootfs
+CFE> flash -noerase -noheader -offset=5242880 192.168.1.77:chunk_ab flash0.rootfs
+CFE> flash -noerase -noheader -offset=10485760 192.168.1.77:chunk_ac flash0.rootfs
+...
+```
+Generate your commands using the following python code:
+```python
+LOCALIP = "192.168.1.69" # Replace with your own IP
+CHUNKCOUNT = 16
+
+for i in range(CHUNKCOUNT):
+	print(f"flash -noerase -noheader -offset={i*5242880} {LOCALIP}:chunk_a{chr(ord('a')+i)} flash0.rootfs")
+```
+
+Now boot into OS using your boot command and hope for the best! To verify the boot hook, you can check out the `rcS` file in `vi`, and scroll down until you find it.
+```bash
+vi /etc/init.d/rcS
+```
+
+If its there, you are mostly done!
+
+## Part 5: Writing a user script
+
+Since the `pstor` partition is not ephemeral, you can do what ever you want there. Simply create and write a `/mnt/pstor/startup.sh` file with what ever programs you want, and exit with the 105 exit code to prevent the default program from being executed. The following is what I have:
+```bash
+vi /mnt/pstor/startup.sh
+```
+Contents:
+```bash
+# Startup networking with a known ip
+ifconfig eth0 192.168.1.10 up  
+# Enable telnet
+telnetd  
+  
+# Something funny to make me laugh
+echo HACKED DVD PLAYER
+```
+
+Reboot and reap the rewards! With telnet you can remove the pi!
