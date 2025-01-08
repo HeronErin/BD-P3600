@@ -31,7 +31,7 @@ After the raspberry pi has UART enabled, you need to solder to the correct pins.
 
 ![](imgs/diagram.png)
 ![](imgs/pcp-location.png)
-If you ignore my horrible solder job, here it what it should look like!
+If you ignore my horrible solder job, here is what it should look like!
 ![](imgs/my-solder.jpg)
 if you did everything right, and it passes the smoke test, you've got yourself all you need on the hardware side!
 
