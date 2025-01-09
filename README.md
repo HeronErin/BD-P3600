@@ -80,7 +80,7 @@ There are two methods to login to the BD-P3600, and if your anything like me you
 
 After playing around for a while, you might notice that the entire OS (apart from the pstor) is  ephemeral, meaning any saved changes are reverted upon reboot, even if the write protection is disabled.
 
-Either way, once you are in the OS, the **FIRST THING TO DO** is to dumping the firmware for safety. It is best to do your own, as it is likely unique to your device, and other peoples might not work for you!
+Either way, once you are in the OS, the **FIRST THING TO DO** is to dump the firmware for safety. It is best to do your own, as it is likely unique to your device, and other peoples might not work for you!
 
 To extract the firmware, you need a `fat32` formatted USB flash drive. 
 
@@ -100,7 +100,7 @@ mount /dev/sda /var
 Replace `sda` with whatever device file it gives you, its not always `sda`!
 
 
-Now to view what partitions exits cat out `/proc/mtd`
+Now to view what partitions exits, cat out `/proc/mtd`
 ```
 # cat /proc/mtd  
 dev:    size   erasesize  name  
@@ -135,7 +135,7 @@ dd if=/dev/mtdblock10 of=/var/all.bin
 sync # Make sure all data is copied to the flash drive
 umount /var
 ```
-**Note**: The `nanddump` command adds extra error correction that make the resulting files invalid. 
+**Note**: The `nanddump` command adds extra error correction that make the resulting files invalid, and as such, can not be easily reflashed. 
 
 
 ## Part 3: Modifying the rootfs to gain persistence
@@ -217,6 +217,8 @@ sudo systemctl restart tftpd-hpa
 
 # Get your local ip
 ifconfig
+# or on newer systems use:
+ip addr
 ```
 Now split up the modified rootfs into 5 megabyte chunks:
 ```bash
@@ -225,7 +227,7 @@ split -b 5242880 modfs.bin chunk_
 ```
 
 
-At this point, plug the BD-P3600 into the router with the Ethernet cable, then get into the bootloader. To player the rootfs, use these commands:
+At this point, plug the BD-P3600 into the router with the Ethernet cable, then get into the bootloader. To flash the rootfs, use these commands:
 ```bash
 # Enable networking
 CFE> ifconfig eth0 -auto
