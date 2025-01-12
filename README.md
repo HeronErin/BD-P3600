@@ -277,3 +277,28 @@ echo HACKED DVD PLAYER
 ```
 
 Reboot and reap the rewards! With telnet you can remove the pi!
+
+
+## Bonus: Custom splash images!
+
+One of the easiest, but also one of the coolest, mods you can do to your blueray player is replacing the splash screen!
+Internally it is stored as a `UYVY 422 8-bit little endian` image on the `flash0.splash` partition (aka `mtd4` on my device). You can convert to and from this format with the following commands!
+```bash
+# Convert from a splash image to a png
+head -c 691200 splash.bin > input.uyvy
+ffmpeg -f rawvideo -pixel_format uyvy422 -video_size 720x480 -i input.uyvy output.png
+
+
+# Convert into a spalsh image from a png
+ffmpeg -i input.png -vf format=yuv422p -pix_fmt uyvy422 output.yuv
+```
+And to flash the new splash image I found the `dd` command worked, where `nandwrite` kept failing me. 
+```bash
+dd if=/mnt/pstor/output.yuv of=/dev/mtdblock4
+```
+
+
+Although I had a lot of problems flashing the it (as is typical with this model of blueray player) and kept needing to erase the flash partition to start over.
+```plaintext
+CFE> flasherase -force flash0.splash
+```
